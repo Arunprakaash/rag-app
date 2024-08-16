@@ -1,6 +1,4 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
-from pydantic import BaseModel
-import psycopg2
 from psycopg2.extras import RealDictCursor
 import google.generativeai as genai
 import os
@@ -8,52 +6,22 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 import io
 import numpy as np
-from pathlib import Path
-from configparser import ConfigParser
 
-DB_INIT_FILE = 'database.ini'
+from models import Tenant, Query
+from db import get_db_connection
+from constants import GEMINI_API_KEY
+
 
 app = FastAPI()
 
-# Configure Gemini
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+genai.configure(api_key=GEMINI_API_KEY)
 
-def db_config(filename: Path = DB_INIT_FILE, section: str = 'postgresql'):
-    parser = ConfigParser()
-    parser.read(filename)
-    if parser.has_section(section):
-        params = parser.items(section)
-        db = {param[0]: param[1] for param in params}
-    else:
-        raise Exception(f'Section {section} not found in the {filename} file')
-    return db
-
-# Database connection
-def get_db_connection():
-    params = db_config()
-    try:
-        params['host'] = 'db'
-        conn = psycopg2.connect(**params)
-        return conn
-    except (Exception, psycopg2.Error) as error:
-        print("Error while connecting to PostgreSQL", error)
-        raise HTTPException(status_code=500, detail="Database connection error")
-
-# Use this as a dependency
 async def get_db():
     conn = get_db_connection()
     try:
         yield conn
     finally:
         conn.close()
-
-class Tenant(BaseModel):
-    name: str
-
-class Query(BaseModel):
-    text: str
-    k: int = 5
-
 
 @app.post("/tenants")
 async def create_tenant(tenant: Tenant, conn = Depends(get_db)):

@@ -1,34 +1,37 @@
 services:
   app:
+    container_name: app
     build: ./app
     ports:
       - "8080:8080"
     depends_on:
-      - server
+      - backend
     environment:
-      - API_URL=http://server:8000
+      - API_URL=http://backend:8000
 
-  server:
-    build: ./server
+  backend:
+    container_name: api
+    build: ./backend
     ports:
       - "8000:8000"
     depends_on:
       - db
     environment:
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=admin@rocketfrog.ai
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
 
   db:
+    container_name: database
     hostname: db
     image: ankane/pgvector
     ports:
      - 5432:5432
     restart: always
     environment:
-      - POSTGRES_DB=vectordb
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=admin@rocketfrog.ai
+      - POSTGRES_DB=${POSTGRES_DATABASE}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_HOST_AUTH_METHOD=trust
     volumes:
      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
