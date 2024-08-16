@@ -9,14 +9,21 @@ API_URL = os.getenv("API_URL")
 
 def create_tenant(tenant_name: Text):
     response = requests.post(f"{API_URL}/tenants", json={"name": tenant_name})
-    st.write(response.json())
+    return response.json()
 
 def delete_tenant(tenant_name: Text):
     response = requests.delete(f"{API_URL}/tenants/{tenant_name}")
-    st.write(response.json())
+    return response.json()
 
 def get_tenants():
-    return requests.get(f"{API_URL}/tenants").json()
+    response = requests.get(f"{API_URL}/tenants")
+    if response.status_code == 200:
+        tenants_data = response.json()
+        if tenants_data:
+            return [tenant["name"] for tenant in tenants_data]
+        return None
+    else:
+        return None
 
 
 def upload_knowledge_base(tenant_name: Text, uploaded_files):
@@ -25,8 +32,6 @@ def upload_knowledge_base(tenant_name: Text, uploaded_files):
         response = requests.post(f"{API_URL}/upload/{tenant_name}", files=files)
         st.write(response.json())
 
-
-# Utility functions remain unchanged
 def add_custom_css():
     st.markdown("""
             <style>

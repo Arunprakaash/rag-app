@@ -1,20 +1,19 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
 from psycopg2.extras import RealDictCursor
 import google.generativeai as genai
-import os
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 import io
+import os
 import numpy as np
 
 from models import Tenant, Query
-from db import get_db_connection
-from constants import GEMINI_API_KEY
+from database import get_db_connection
 
 
 app = FastAPI()
 
-genai.configure(api_key=GEMINI_API_KEY)
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 async def get_db():
     conn = get_db_connection()

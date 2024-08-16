@@ -15,4 +15,4 @@ RUN poetry install --no-root
 
 COPY . /app
 
-CMD ["poetry", "run", "streamlit", "run", "app.py"]
+CMD ["poetry", "run", "streamlit", "run", "src/app.py"]
