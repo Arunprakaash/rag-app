@@ -2,11 +2,9 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
 from psycopg2.extras import RealDictCursor
 import google.generativeai as genai
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyPDFLoader
 from pypdf import PdfReader
 from io import BytesIO
 import os
-import numpy as np
 
 from consts import EMBEDDING_MODEL
 from models import Tenant, Query
