@@ -1,6 +1,7 @@
 from consts import POSTGRES_SECTION
 from utils import load_config
 
+
 def db_config(section: str = POSTGRES_SECTION):
     parser = load_config()
     if parser.has_section(section):

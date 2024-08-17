@@ -1,5 +1,6 @@
 import streamlit as st
 
+
 @st.fragment
 def chat_interface_fragment():
     messages = st.container(height=565)
@@ -19,7 +20,7 @@ def chat_interface_fragment():
 
         # Query the index
         with st.toast("Thinking..."):
-            response =  {"response": "hi!"}# query_index(st.session_state.current_tenant, prompt)
+            response = {"response": "hi!"}  # query_index(st.session_state.current_tenant, prompt)
 
         if "error" not in response:
             # Add AI response to chat history and display it

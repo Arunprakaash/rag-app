@@ -2,6 +2,7 @@ import streamlit as st
 
 from utils import upload_knowledge_base
 
+
 @st.fragment
 def knowledge_fragment():
     st.subheader("Knowledge Management", anchor=False)
@@ -24,4 +25,4 @@ def knowledge_fragment():
 
     if upload_files:
         st.button("**Update knowledge config**", type='primary', on_click=upload_knowledge_base,
-                  args=[st.session_state.current_tenant, upload_files])
+                  args=[st.session_state.current_tenant_id, upload_files])

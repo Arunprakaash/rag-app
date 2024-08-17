@@ -10,10 +10,10 @@ from consts import EMBEDDING_MODEL
 from models import Tenant, Query
 from database import get_db_connection
 
-
 app = FastAPI()
 
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+
 
 async def get_db():
     conn = get_db_connection()
@@ -22,8 +22,9 @@ async def get_db():
     finally:
         conn.close()
 
+
 @app.post("/tenants")
-async def create_tenant(tenant: Tenant, conn = Depends(get_db)):
+async def create_tenant(tenant: Tenant, conn=Depends(get_db)):
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("INSERT INTO tenants (name) VALUES (%s) RETURNING id, name", (tenant.name,))
@@ -36,7 +37,7 @@ async def create_tenant(tenant: Tenant, conn = Depends(get_db)):
 
 
 @app.get("/tenants")
-async def get_tenants(conn = Depends(get_db)):
+async def get_tenants(conn=Depends(get_db)):
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("SELECT id, name FROM tenants")
@@ -47,7 +48,7 @@ async def get_tenants(conn = Depends(get_db)):
 
 
 @app.delete("/tenants/{tenant_id}")
-async def delete_tenant(tenant_id: int, conn = Depends(get_db)):
+async def delete_tenant(tenant_id: int, conn=Depends(get_db)):
     try:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM tenants WHERE id = %s RETURNING id", (tenant_id,))
@@ -60,8 +61,9 @@ async def delete_tenant(tenant_id: int, conn = Depends(get_db)):
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
+
 @app.post("/upload/{tenant_id}")
-async def upload_file(tenant_id: int, file: UploadFile = File(...), conn = Depends(get_db)):
+async def upload_file(tenant_id: int, file: UploadFile = File(...), conn=Depends(get_db)):
     try:
         content = await file.read()
         pdf_file = BytesIO(content)
@@ -90,15 +92,16 @@ async def upload_file(tenant_id: int, file: UploadFile = File(...), conn = Depen
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
+
 @app.post("/query/{tenant_id}")
-async def query_knowledge_base(tenant_id: int, query: Query, conn = Depends(get_db)):
+async def query_knowledge_base(tenant_id: int, query: Query, conn=Depends(get_db)):
     try:
         # Generate embedding for the query
         # embedding_model = genai.get_model(EMBEDDING_MODEL)
         query_embedding = genai.embed_content(
             model=EMBEDDING_MODEL,
             content=query.text
-            )['embedding']
+        )['embedding']
 
         # Convert the embedding to a numpy array and then to a list
         # query_embedding_list = np.array(query_embedding).tolist()
@@ -112,7 +115,7 @@ async def query_knowledge_base(tenant_id: int, query: Query, conn = Depends(get_
                         ORDER BY cosine_similarity desc
                         LIMIT {query.k}
                         """)
-            
+
             results = cur.fetchall()
 
         if not results:
@@ -122,6 +125,8 @@ async def query_knowledge_base(tenant_id: int, query: Query, conn = Depends(get_
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error querying knowledge base: {str(e)}")
 
+
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
