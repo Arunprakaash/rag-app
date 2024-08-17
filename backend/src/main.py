@@ -3,10 +3,12 @@ from psycopg2.extras import RealDictCursor
 import google.generativeai as genai
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
-import io
+from pypdf import PdfReader
+from io import BytesIO
 import os
 import numpy as np
 
+from consts import EMBEDDING_MODEL
 from models import Tenant, Query
 from database import get_db_connection
 
@@ -67,10 +69,14 @@ async def upload_file(tenant_id: int, file: UploadFile = File(...), conn = Depen
         # Read the PDF file
         content = await file.read()
         
-        # Use PyPDFLoader to load the PDF content
-        pdf_file = io.BytesIO(content)
-        loader = PyPDFLoader(pdf_file)
-        pages = loader.load()
+        # Use PdfReader to read the PDF content
+        pdf_file = BytesIO(content)
+        pdf_reader = PdfReader(pdf_file)
+        
+        # Extract text from all pages
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text()
         
         # Initialize the text splitter
         text_splitter = RecursiveCharacterTextSplitter(
@@ -80,20 +86,20 @@ async def upload_file(tenant_id: int, file: UploadFile = File(...), conn = Depen
         )
         
         # Split the document into chunks
-        chunks = text_splitter.split_documents(pages)
+        chunks = text_splitter.split_text(text)
         
-        # Generate embedding using Gemini
-        embedding_model = genai.GenerativeModel('text-embedding-004')
         
         # Store chunks and their embeddings in the database
         with conn.cursor() as cur:
             for chunk in chunks:
-                chunk_text = chunk.page_content
-                embedding = embedding_model.embed_content(content=chunk_text)
+                embedding = genai.embed_content(
+                    model=EMBEDDING_MODEL,
+                    content=chunk
+                    )['embedding']
                 
                 cur.execute(
                     "INSERT INTO knowledge_base (tenant_id, filename, chunk_content, embedding) VALUES (%s, %s, %s, %s)",
-                    (tenant_id, file.filename, chunk_text, embedding.values)
+                    (tenant_id, file.filename, chunk, embedding)
                 )
             
             conn.commit()
@@ -107,22 +113,24 @@ async def upload_file(tenant_id: int, file: UploadFile = File(...), conn = Depen
 async def query_knowledge_base(tenant_id: int, query: Query, conn = Depends(get_db)):
     try:
         # Generate embedding for the query
-        embedding_model = genai.GenerativeModel('text-embedding-004')
-        query_embedding = embedding_model.embed_content(content=query.text).values
+        # embedding_model = genai.get_model(EMBEDDING_MODEL)
+        query_embedding = genai.embed_content(
+            model=EMBEDDING_MODEL,
+            content=query.text
+            )['embedding']
 
         # Convert the embedding to a numpy array and then to a list
-        query_embedding_list = np.array(query_embedding).tolist()
+        # query_embedding_list = np.array(query_embedding).tolist()
 
         # Perform the similarity search
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("""
-                SELECT chunk_content, filename, 
-                       1 - (embedding <=> %s) AS cosine_similarity
-                FROM knowledge_base
-                WHERE tenant_id = %s
-                ORDER BY cosine_similarity DESC
-                LIMIT %s
-            """, (query_embedding_list, tenant_id, query.k))
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                        SELECT chunk_content, filename, 1 - (embedding <=> '{query_embedding}') AS cosine_similarity
+                        FROM knowledge_base
+                        WHERE tenant_id = '{tenant_id}'
+                        ORDER BY cosine_similarity desc
+                        LIMIT {query.k}
+                        """)
             
             results = cur.fetchall()
 
