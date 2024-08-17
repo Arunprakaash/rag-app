@@ -62,48 +62,31 @@ async def delete_tenant(tenant_id: int, conn = Depends(get_db)):
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-
 @app.post("/upload/{tenant_id}")
 async def upload_file(tenant_id: int, file: UploadFile = File(...), conn = Depends(get_db)):
     try:
-        # Read the PDF file
         content = await file.read()
-        
-        # Use PdfReader to read the PDF content
         pdf_file = BytesIO(content)
         pdf_reader = PdfReader(pdf_file)
-        
-        # Extract text from all pages
-        text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text()
-        
-        # Initialize the text splitter
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
-            length_function=len
-        )
-        
-        # Split the document into chunks
+        text = "".join(page.extract_text() for page in pdf_reader.pages)
+
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200, length_function=len)
         chunks = text_splitter.split_text(text)
-        
-        
-        # Store chunks and their embeddings in the database
+
+        # Prepare batch insert
+        insert_data = []
+        for chunk in chunks:
+            embedding = genai.embed_content(model=EMBEDDING_MODEL, content=chunk)['embedding']
+            insert_data.append((tenant_id, file.filename, chunk, embedding))
+
+        # Batch insert into the database
         with conn.cursor() as cur:
-            for chunk in chunks:
-                embedding = genai.embed_content(
-                    model=EMBEDDING_MODEL,
-                    content=chunk
-                    )['embedding']
-                
-                cur.execute(
-                    "INSERT INTO knowledge_base (tenant_id, filename, chunk_content, embedding) VALUES (%s, %s, %s, %s)",
-                    (tenant_id, file.filename, chunk, embedding)
-                )
-            
+            cur.executemany(
+                "INSERT INTO knowledge_base (tenant_id, filename, chunk_content, embedding) VALUES (%s, %s, %s, %s)",
+                insert_data
+            )
             conn.commit()
-        
+
         return {"message": f"File uploaded and processed successfully. {len(chunks)} chunks created and stored."}
     except Exception as e:
         conn.rollback()
