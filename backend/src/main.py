@@ -6,7 +6,7 @@ from pypdf import PdfReader
 from io import BytesIO
 import os
 
-from consts import EMBEDDING_MODEL
+from consts import EMBEDDING_MODEL, LLM
 from models import Tenant, Query
 from database import get_db_connection
 
@@ -121,7 +121,26 @@ async def query_knowledge_base(tenant_id: int, query: Query, conn=Depends(get_db
         if not results:
             raise HTTPException(status_code=404, detail="No relevant results found")
 
-        return results
+        # Extract relevant chunks from the results
+        relevant_chunks = "\n\n".join([result[0] for result in results])
+
+        llm = genai.GenerativeModel(
+            model_name=LLM,
+            safety_settings={
+                'HATE': 'BLOCK_NONE',
+                'HARASSMENT': 'BLOCK_NONE',
+                'SEXUAL': 'BLOCK_NONE',
+                'DANGEROUS': 'BLOCK_NONE'
+            }
+        )
+
+        # Use the LLM to generate a response based on the retrieved chunks
+        llm_response = llm.generate_content(
+            f"Based on the following information: {relevant_chunks}, answer the question: {query.text}",
+        ).text
+
+        return {"results": results, "llm_response": llm_response}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error querying knowledge base: {str(e)}")
 

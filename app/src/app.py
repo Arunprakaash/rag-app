@@ -1,5 +1,3 @@
-from typing import Text
-
 import streamlit as st
 
 from components import knowledge_fragment, chat_interface_fragment
