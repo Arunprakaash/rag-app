@@ -2,9 +2,11 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
 from psycopg2.extras import RealDictCursor
 import google.generativeai as genai
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from pypdf import PdfReader
+from langchain_community.document_loaders import PyPDFLoader
 from io import BytesIO
 import os
+
+from pypdf import PdfReader
 
 from consts import EMBEDDING_MODEL, LLM
 from models import Tenant, Query
@@ -70,24 +72,35 @@ async def upload_file(tenant_id: int, file: UploadFile = File(...), conn=Depends
         pdf_reader = PdfReader(pdf_file)
         text = "".join(page.extract_text() for page in pdf_reader.pages)
 
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200, length_function=len)
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0, length_function=len)
         chunks = text_splitter.split_text(text)
 
-        # Prepare batch insert
-        insert_data = []
-        for chunk in chunks:
-            embedding = genai.embed_content(model=EMBEDDING_MODEL, content=chunk)['embedding']
-            insert_data.append((tenant_id, file.filename, chunk, embedding))
+        if chunks:
+            with conn.cursor() as cur:
+                # Insert file metadata into knowledge_base
+                cur.execute(
+                    "INSERT INTO knowledge_base (tenant_id, filename) VALUES (%s, %s) RETURNING id",
+                    (tenant_id, file.filename)
+                )
+                knowledge_base_id = cur.fetchone()[0]
 
-        # Batch insert into the database
-        with conn.cursor() as cur:
-            cur.executemany(
-                "INSERT INTO knowledge_base (tenant_id, filename, chunk_content, embedding) VALUES (%s, %s, %s, %s)",
-                insert_data
-            )
-            conn.commit()
+                # Prepare chunk data
+                insert_data = [
+                    (knowledge_base_id, chunk, genai.embed_content(model=EMBEDDING_MODEL, content=chunk)['embedding'])
+                    for chunk in chunks
+                ]
 
-        return {"message": f"File uploaded and processed successfully. {len(chunks)} chunks created and stored."}
+                # Insert chunks into file_chunks
+                cur.executemany(
+                    "INSERT INTO file_chunks (knowledge_base_id, chunk_content, embedding) VALUES (%s, %s, %s)",
+                    insert_data
+                )
+
+                conn.commit()
+
+            return {"message": f"File uploaded and processed successfully. {len(chunks)} chunks created and stored."}
+
+        return {"message": "no chunks found"}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
@@ -96,33 +109,29 @@ async def upload_file(tenant_id: int, file: UploadFile = File(...), conn=Depends
 @app.post("/query/{tenant_id}")
 async def query_knowledge_base(tenant_id: int, query: Query, conn=Depends(get_db)):
     try:
-        # Generate embedding for the query
-        # embedding_model = genai.get_model(EMBEDDING_MODEL)
         query_embedding = genai.embed_content(
             model=EMBEDDING_MODEL,
             content=query.text
         )['embedding']
 
-        # Convert the embedding to a numpy array and then to a list
-        # query_embedding_list = np.array(query_embedding).tolist()
-
-        # Perform the similarity search
-        with conn.cursor() as cur:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Join knowledge_base and file_chunks to get relevant chunks
             cur.execute(f"""
-                        SELECT chunk_content, filename, 1 - (embedding <=> '{query_embedding}') AS cosine_similarity
-                        FROM knowledge_base
-                        WHERE tenant_id = '{tenant_id}'
-                        ORDER BY cosine_similarity desc
-                        LIMIT {query.k}
-                        """)
+                SELECT fc.chunk_content, kb.filename, 1 - (fc.embedding <=> '{query_embedding}') AS cosine_similarity
+                FROM file_chunks fc
+                JOIN knowledge_base kb ON fc.knowledge_base_id = kb.id
+                WHERE kb.tenant_id = '{tenant_id}'
+                ORDER BY cosine_similarity DESC
+                LIMIT {query.k}
+            """)
 
             results = cur.fetchall()
 
         if not results:
             raise HTTPException(status_code=404, detail="No relevant results found")
 
-        # Extract relevant chunks from the results
-        relevant_chunks = "\n\n".join([result[0] for result in results])
+        # Combine relevant chunks
+        relevant_chunks = "\n\n".join([result["chunk_content"] for result in results])
 
         llm = genai.GenerativeModel(
             model_name=LLM,
@@ -139,10 +148,48 @@ async def query_knowledge_base(tenant_id: int, query: Query, conn=Depends(get_db
             f"Based on the following information: {relevant_chunks}, answer the question: {query.text}",
         ).text
 
-        return {"results": results, "llm_response": llm_response}
+        return {"result": results, "response": llm_response}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error querying knowledge base: {str(e)}")
+
+
+@app.get("/files/{tenant_id}")
+async def list_files(tenant_id: int, conn=Depends(get_db)):
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, filename 
+                FROM knowledge_base 
+                WHERE tenant_id = %s
+            """, (tenant_id,))
+            files = cur.fetchall()
+
+        # Format the response as a list of dictionaries
+        files_response = [{"id": file[0], "filename": file[1]} for file in files]
+
+        return {"files": files_response}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+@app.delete("/files/{tenant_id}/{file_id}")
+async def delete_file(tenant_id: int, file_id: int, conn=Depends(get_db)):
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                DELETE FROM knowledge_base 
+                WHERE tenant_id = %s AND id = %s RETURNING id
+            """, (tenant_id, file_id))
+            deleted = cur.fetchone()
+            conn.commit()
+        if deleted:
+            return {"message": f"File with ID {file_id} deleted successfully"}
+        raise HTTPException(status_code=404, detail="File not found")
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
 if __name__ == "__main__":

@@ -11,10 +11,16 @@ if 'current_tenant_id' not in st.session_state:
     st.session_state.current_tenant_id = None
 if 'tenant_files' not in st.session_state:
     st.session_state.tenant_files = None
+if 'rerun' not in st.session_state:
+    st.session_state.rerun = False
 
 
 def main():
     st.set_page_config(layout="wide", page_title="rag-app")
+
+    if 'rerun' in st.session_state and st.session_state.rerun:
+        st.session_state.rerun = False
+        st.rerun()
 
     add_custom_css()
 

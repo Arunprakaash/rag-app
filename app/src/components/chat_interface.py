@@ -1,5 +1,6 @@
 import streamlit as st
 
+from utils import query_knowledge_base
 
 @st.fragment
 def chat_interface_fragment():
@@ -20,7 +21,7 @@ def chat_interface_fragment():
 
         # Query the index
         with st.toast("Thinking..."):
-            response = {"response": "hi!"}  # query_index(st.session_state.current_tenant, prompt)
+            response = {"response": query_knowledge_base(st.session_state.current_tenant_id, prompt)}
 
         if "error" not in response:
             # Add AI response to chat history and display it
