@@ -91,10 +91,6 @@ def main():
     footer()
 
 
-@st.cache_data
-def get_cached_tenant_files(tenant_id):
-    return get_tenant_files(tenant_id)
-
 
 @st.fragment
 def chat_interface_fragment():
@@ -129,11 +125,11 @@ def knowledge_fragment():
     st.subheader("Knowledge Management", anchor=False)
     st.caption("Manage your own data to chat with.")
 
-    tenant_files = get_cached_tenant_files(st.session_state.current_tenant_id)
+    # tenant_files = get_tenant_files(st.session_state.current_tenant_id)
 
-    if tenant_files:
+    if st.session_state.tenant_files:
         st.write("Existing files:")
-        for file in tenant_files:
+        for file in st.session_state.tenant_files:
             col1, col2 = st.columns([5, 1])
             with col1:
                 st.write(file['filename'])
