@@ -7,7 +7,7 @@ import os
 
 from pypdf import PdfReader
 
-from consts import EMBEDDING_MODEL, LLM
+from consts import EMBEDDING_MODEL, LLM, PROMPT
 from models import Tenant, Query
 from database import get_db_connection
 
@@ -156,11 +156,9 @@ async def query_knowledge_base(tenant_id: int, query: Query, conn=Depends(get_db
                 'DANGEROUS': 'BLOCK_NONE'
             }
         )
-
         # Use the LLM to generate a response based on the retrieved chunks
         llm_response = llm.generate_content(
-            f"Based on the following information: {relevant_chunks}, answer the question: {query.text}",
-        ).text
+            PROMPT.format(question=query.text, context=relevant_chunks)).text
 
         return {"result": results, "response": llm_response}
 
