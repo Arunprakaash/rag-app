@@ -22,8 +22,6 @@ services:
   backend:
     container_name: api
     build: ./backend
-    ports:
-      - 9000:8000
     depends_on:
       - db
     environment:

@@ -1,6 +1,7 @@
 import streamlit as st
+
 from utils import (
-    add_custom_css, footer, login, query_knowledge_base,
+    add_custom_css, footer, login, query_knowledge_base
 )
 
 # Initialize session state
@@ -20,41 +21,47 @@ def main():
         login_fragment()
     else:
         chat_interface_fragment()
+        footer()
 
-    footer()
 
-
-@st.fragment
 def login_fragment():
-    with st.form("login_form"):
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        login_button = st.form_submit_button("Login")
+    with st.form("login_form", clear_on_submit=True, border=False):
+        st.markdown(
+            """
+            <div style="text-align: center;">
+                <h5>Please enter your credentials to login</h5>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        username = st.text_input("Username", placeholder="Enter your username")
+        password = st.text_input("Password", type="password", placeholder="Enter your password")
+        login_button = st.form_submit_button("Login", type="primary")
         if login_button:
             if login(username, password):
-                st.session_state.is_authenticated = True
+                st.rerun()
 
 
 @st.fragment
 def chat_interface_fragment():
-    st.caption("Chat Interface")
-    messages = st.container(height=650, border=False)
+    st.caption("Interact with your documents using AI!")
 
-    # Display chat history
+    messages = st.container(height=600, border=False)
+
+    messages.chat_message("ai").write(
+        "Hello! I am an AI developed by RockerFrog. Start chatting with your documents now!")
+
     for message in st.session_state.chat_history:
         messages.chat_message(message["role"]).write(message["content"])
 
     if prompt := st.chat_input("Ask a question about your documents"):
-        # Add user message to chat history and display it
         st.session_state.chat_history.append({"role": "human", "content": prompt})
         messages.chat_message("human").write(prompt)
 
-        # Query the index
         with st.toast("Thinking..."):
             response = {"response": query_knowledge_base(st.session_state.current_tenant_id, prompt)}
 
         if "error" not in response:
-            # Add AI response to chat history and display it
             ai_message = response.get("response", "Sorry, I couldn't generate a response.")
             st.session_state.chat_history.append({"role": "ai", "content": ai_message})
             messages.chat_message("ai").write(ai_message)

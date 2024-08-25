@@ -9,8 +9,12 @@ API_URL = os.getenv("API_URL")
 
 def set_current_tenant(tenant_id: Text) -> None:
     st.session_state.current_tenant_id = tenant_id
-    st.session_state.chat_history = []
     st.session_state.is_authenticated = True
+
+
+def logout():
+    st.session_state.current_tenant_id = None
+    st.session_state.is_authenticated = False
 
 
 def login(username, password):
@@ -19,12 +23,15 @@ def login(username, password):
         response_data = response.json()
 
         if response.status_code == 200:
+            st.toast("Logged in successfully!")
             set_current_tenant(response_data["id"])
-            st.success("Logged in successfully!")
+            return response_data
         else:
-            st.error("Invalid username or password")
+            st.toast("Invalid username or password")
+            return False
     except requests.exceptions.RequestException as e:
-        st.error(f"An error occurred: {str(e)}")
+        st.toast(f"An error occurred: {str(e)}")
+        return False
 
 
 def query_knowledge_base(tenant_id: Text, query: Text) -> Any:
@@ -61,3 +68,4 @@ def footer():
         """,
         unsafe_allow_html=True
     )
+    st.button("Logout", on_click=logout, help="Log out of the application", type='primary')
