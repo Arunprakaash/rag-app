@@ -22,3 +22,6 @@ font="sans serif"
 
 [server]
 port = 8080
+
+[client]
+toolbarMode = "viewer"

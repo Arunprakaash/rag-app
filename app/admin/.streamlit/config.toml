@@ -23,3 +23,6 @@ font="sans serif"
 [server]
 port = 8080
 baseUrlPath = "/admin"
+
+[client]
+toolbarMode = "viewer"
