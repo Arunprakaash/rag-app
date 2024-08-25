@@ -11,17 +11,20 @@ if "chat_history" not in st.session_state:
 if "is_authenticated" not in st.session_state:
     st.session_state.is_authenticated = False
 
+
 def main():
-    st.set_page_config(layout="wide", page_title="rag-app")
+    st.set_page_config(layout="wide", page_title="user")
     add_custom_css()
-    
+
     if not st.session_state.is_authenticated:
         login_fragment()
     else:
         chat_interface_fragment()
-    
+
     footer()
 
+
+@st.fragment
 def login_fragment():
     with st.form("login_form"):
         username = st.text_input("Username")
@@ -30,25 +33,26 @@ def login_fragment():
         if login_button:
             if login(username, password):
                 st.session_state.is_authenticated = True
-                st.rerun()
 
+
+@st.fragment
 def chat_interface_fragment():
     st.caption("Chat Interface")
-    messages = st.container()
-    
+    messages = st.container(height=650, border=False)
+
     # Display chat history
     for message in st.session_state.chat_history:
         messages.chat_message(message["role"]).write(message["content"])
-    
+
     if prompt := st.chat_input("Ask a question about your documents"):
         # Add user message to chat history and display it
         st.session_state.chat_history.append({"role": "human", "content": prompt})
         messages.chat_message("human").write(prompt)
-        
+
         # Query the index
-        with st.spinner("Thinking..."):
+        with st.toast("Thinking..."):
             response = {"response": query_knowledge_base(st.session_state.current_tenant_id, prompt)}
-        
+
         if "error" not in response:
             # Add AI response to chat history and display it
             ai_message = response.get("response", "Sorry, I couldn't generate a response.")
@@ -58,6 +62,7 @@ def chat_interface_fragment():
             error_message = f"Error: {response['error']}"
             st.session_state.chat_history.append({"role": "ai", "content": error_message})
             messages.chat_message("ai").write(error_message)
+
 
 if __name__ == "__main__":
     main()

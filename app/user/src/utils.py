@@ -4,6 +4,7 @@ import requests
 import streamlit as st
 
 API_URL = os.getenv("API_URL")
+# API_URL = "http://localhost:9000"
 
 
 def set_current_tenant(tenant_id: Text) -> None:
@@ -24,7 +25,6 @@ def login(username, password):
             st.error("Invalid username or password")
     except requests.exceptions.RequestException as e:
         st.error(f"An error occurred: {str(e)}")
-
 
 
 def query_knowledge_base(tenant_id: Text, query: Text) -> Any:
