@@ -14,7 +14,7 @@ if "is_authenticated" not in st.session_state:
 
 
 def main():
-    st.set_page_config(layout="wide", page_title="user")
+    st.set_page_config(page_title="user")
     add_custom_css()
 
     if not st.session_state.is_authenticated:
