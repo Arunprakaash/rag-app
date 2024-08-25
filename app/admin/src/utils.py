@@ -5,7 +5,6 @@ import requests
 import streamlit as st
 
 API_URL = os.getenv("API_URL")
-# API_URL = 'http://localhost:8000'
 
 
 def set_current_tenant(tenant_name: Text, tenant_id: Text) -> None:

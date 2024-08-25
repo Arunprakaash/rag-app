@@ -21,6 +21,6 @@ CREATE TABLE IF NOT EXISTS file_chunks (
   id SERIAL PRIMARY KEY,
   knowledge_base_id INTEGER REFERENCES knowledge_base(id) ON DELETE CASCADE,
   chunk_content TEXT NOT NULL,
-  embedding vector,
+  embedding vector(768),
   created_at TIMESTAMPTZ DEFAULT now()
 );

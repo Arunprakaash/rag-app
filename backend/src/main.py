@@ -2,7 +2,6 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
 from psycopg2.extras import RealDictCursor
 import google.generativeai as genai
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyPDFLoader
 from io import BytesIO
 import os
 
@@ -35,6 +34,22 @@ async def create_tenant(tenant: Tenant, conn=Depends(get_db)):
         return new_tenant
     except Exception as e:
         conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+@app.post("/login")
+async def login(username: str, password: str, conn=Depends(get_db)):
+    try:
+        if username == password:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM tenants WHERE name = %s", (username,))
+                tenant = cur.fetchone()
+
+            if tenant:
+                return {"id": tenant[0]}
+
+        raise HTTPException(status_code=400, detail="Invalid username or password")
+    except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
@@ -115,15 +130,14 @@ async def query_knowledge_base(tenant_id: int, query: Query, conn=Depends(get_db
         )['embedding']
 
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # Join knowledge_base and file_chunks to get relevant chunks
-            cur.execute(f"""
-                SELECT fc.chunk_content, kb.filename, 1 - (fc.embedding <=> '{query_embedding}') AS cosine_similarity
+            cur.execute("""
+                SELECT fc.chunk_content, kb.filename, 1 - (fc.embedding <=> %s::vector) AS similarity
                 FROM file_chunks fc
                 JOIN knowledge_base kb ON fc.knowledge_base_id = kb.id
-                WHERE kb.tenant_id = '{tenant_id}'
-                ORDER BY cosine_similarity DESC
-                LIMIT {query.k}
-            """)
+                WHERE kb.tenant_id = %s
+                ORDER BY fc.embedding <=> %s::vector
+                LIMIT %s
+            """, (query_embedding, tenant_id, query_embedding, query.k))
 
             results = cur.fetchall()
 

@@ -1,9 +1,19 @@
 services:
-  app:
-    container_name: app
-    build: ./app
+  admin:
+    container_name: admin
+    build: ./app/admin
     ports:
       - 8080:8080
+    depends_on:
+      - backend
+    environment:
+      - API_URL=http://backend:8000
+
+  user:
+    container_name: user
+    build: ./app/user
+    ports:
+      - 8000:8080
     depends_on:
       - backend
     environment:
@@ -12,8 +22,6 @@ services:
   backend:
     container_name: api
     build: ./backend
-    ports:
-      - 8000:8000
     depends_on:
       - db
     environment:
