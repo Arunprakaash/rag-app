@@ -99,10 +99,10 @@ def query_knowledge_base(tenant_id: Text, query: Text) -> Any:
 
 def add_custom_css():
     st.markdown("""
-            <style>
-            /* Add your custom CSS here */
-            </style>
-        """, unsafe_allow_html=True)
+    <style>
+        header {visibility: hidden;}
+    </style>
+    """, unsafe_allow_html=True)
 
 
 def footer():
