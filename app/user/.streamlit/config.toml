@@ -24,4 +24,4 @@ font="sans serif"
 port = 8080
 
 [client]
-toolbarMode = "viewer"
+toolbarMode = "minimal"

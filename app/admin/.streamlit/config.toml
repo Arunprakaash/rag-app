@@ -23,6 +23,8 @@ font="sans serif"
 [server]
 port = 8080
 baseUrlPath = "/admin"
+maxUploadSize = 50
+
 
 [client]
-toolbarMode = "viewer"
+toolbarMode = "minimal"

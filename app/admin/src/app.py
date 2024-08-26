@@ -45,7 +45,7 @@ def handle_delete_file(tenant_id, file_id):
 
 
 def main():
-    st.set_page_config(layout="wide", page_title="rag-app")
+    st.set_page_config(layout="wide", page_title="admin")
     add_custom_css()
 
     if 'tenants_data' not in st.session_state:
@@ -91,7 +91,6 @@ def main():
     footer()
 
 
-
 @st.fragment
 def chat_interface_fragment():
     messages = st.container(height=565)
@@ -125,8 +124,6 @@ def knowledge_fragment():
     st.subheader("Knowledge Management", anchor=False)
     st.caption("Manage your own data to chat with.")
 
-    # tenant_files = get_tenant_files(st.session_state.current_tenant_id)
-
     if st.session_state.tenant_files:
         st.write("Existing files:")
         for file in st.session_state.tenant_files:
@@ -139,7 +136,7 @@ def knowledge_fragment():
 
     upload_files = st.file_uploader("Upload new knowledge base files",
                                     type=["pdf"],
-                                    accept_multiple_files=True)
+                                    accept_multiple_files=True, )
 
     if upload_files:
         st.button("**Update knowledge config**", type='primary', on_click=handle_upload_files,

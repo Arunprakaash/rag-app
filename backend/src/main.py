@@ -15,6 +15,16 @@ app = FastAPI()
 
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
+llm = genai.GenerativeModel(
+    model_name=LLM,
+    safety_settings={
+        'HATE': 'BLOCK_NONE',
+        'HARASSMENT': 'BLOCK_NONE',
+        'SEXUAL': 'BLOCK_NONE',
+        'DANGEROUS': 'BLOCK_NONE'
+    }
+)
+
 
 async def get_db():
     conn = get_db_connection()
@@ -147,15 +157,6 @@ async def query_knowledge_base(tenant_id: int, query: Query, conn=Depends(get_db
         # Combine relevant chunks
         relevant_chunks = "\n\n".join([result["chunk_content"] for result in results])
 
-        llm = genai.GenerativeModel(
-            model_name=LLM,
-            safety_settings={
-                'HATE': 'BLOCK_NONE',
-                'HARASSMENT': 'BLOCK_NONE',
-                'SEXUAL': 'BLOCK_NONE',
-                'DANGEROUS': 'BLOCK_NONE'
-            }
-        )
         # Use the LLM to generate a response based on the retrieved chunks
         llm_response = llm.generate_content(
             PROMPT.format(question=query.text, context=relevant_chunks)).text
