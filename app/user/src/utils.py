@@ -9,6 +9,7 @@ API_URL = os.getenv("API_URL")
 def set_current_tenant(tenant_id: Text) -> None:
     st.session_state.current_tenant_id = tenant_id
     st.session_state.is_authenticated = True
+    st.session_state.chat_history = []
 
 
 def logout():
