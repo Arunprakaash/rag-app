@@ -7,7 +7,7 @@ services:
     depends_on:
       - backend
     environment:
-      - API_URL=http://backend:8000
+      - API_URL=http://backend:8000/api
 
   user:
     container_name: user
@@ -17,7 +17,7 @@ services:
     depends_on:
       - backend
     environment:
-      - API_URL=http://backend:8000
+      - API_URL=http://backend:8000/api
 
   backend:
     container_name: api
