@@ -1,73 +1,68 @@
 import streamlit as st
+from streamlit_authenticator import Authenticate
 
-from utils import (
-    add_custom_css, footer, login, query_knowledge_base
+from utils import add_custom_css, footer, query_knowledge_base, load_config, get_tenant_id
+
+
+@st.cache_data
+def get_cached_config():
+    return load_config()
+
+
+config = get_cached_config()
+
+authenticator = Authenticate(
+    config['credentials'],
+    config['cookie']['name'],
+    config['cookie']['key'],
+    config['cookie']['expiry_days'],
 )
 
-# Initialize session state
-if 'current_tenant_id' not in st.session_state:
-    st.session_state.current_tenant_id = None
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-if "is_authenticated" not in st.session_state:
-    st.session_state.is_authenticated = False
+
+def initialize_state():
+    if 'user' not in st.session_state:
+        st.session_state.user = {"id": None, 'chat_history': []}
 
 
 def main():
-    st.set_page_config(page_title="user")
     add_custom_css()
+    initialize_state()
+    name, authentication_status, username = authenticator.login(captcha=True)
 
-    if not st.session_state.is_authenticated:
-        login_fragment()
-    else:
+    if authentication_status:
+        st.session_state.user.update({'id': get_tenant_id(username)})
         chat_interface_fragment()
-        footer()
-
-
-def login_fragment():
-    with st.form("login_form", clear_on_submit=True, border=False):
-        st.markdown(
-            """
-            <div style="text-align: center;">
-                <h5>Please enter your credentials to login</h5>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-        username = st.text_input("Username", placeholder="Enter your username")
-        password = st.text_input("Password", type="password", placeholder="Enter your password")
-        login_button = st.form_submit_button("Login", type="primary")
-        if login_button:
-            if login(username, password):
-                st.rerun()
+        footer(authenticator)
+    elif authentication_status is False:
+        st.error('Username/password is incorrect')
+    else:
+        st.warning('Please enter your username and password')
 
 
 @st.fragment
 def chat_interface_fragment():
-    st.caption("Interact with your documents using AI!")
-
-    messages = st.container(height=600, border=False)
+    messages = st.container(height=550, border=False)
 
     messages.chat_message("ai").write(
-        "Hello! I am an AI developed by RockerFrog. Start chatting with your documents now!")
+        "Interact with your documents using AI!")
 
-    for message in st.session_state.chat_history:
+    for message in st.session_state.user['chat_history']:
         messages.chat_message(message["role"]).write(message["content"])
 
     if prompt := st.chat_input("Ask a question about your documents"):
-        st.session_state.chat_history.append({"role": "human", "content": prompt})
+        st.session_state.user['chat_history'].append({"role": "human", "content": prompt})
         messages.chat_message("human").write(prompt)
 
         with st.toast("Thinking..."):
-            response = {"response": query_knowledge_base(st.session_state.current_tenant_id, prompt)}
+            response = {"response": query_knowledge_base(st.session_state.user['id'], prompt)}
 
         if "error" not in response:
             ai_message = response.get("response", "Sorry, I couldn't generate a response.")
-            st.session_state.chat_history.append({"role": "ai", "content": ai_message})
+            st.session_state.user['chat_history'].append({"role": "ai", "content": ai_message})
             messages.chat_message("ai").write(ai_message)
         else:
             error_message = f"Error: {response['error']}"
-            st.session_state.chat_history.append({"role": "ai", "content": error_message})
+            st.session_state.user['chat_history'].append({"role": "ai", "content": error_message})
             messages.chat_message("ai").write(error_message)
 
 

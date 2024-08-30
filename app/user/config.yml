@@ -1,0 +1,4 @@
+cookie:
+  expiry_days: 30
+  key: cookie
+  name: cookie_for_a_month

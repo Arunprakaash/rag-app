@@ -1,54 +1,78 @@
 import os
-from typing import Text, Any
+from typing import Any, Optional
+
 import requests
 import streamlit as st
+import streamlit_authenticator as stauth
+import yaml
+from streamlit_authenticator import Authenticate
+from yaml.loader import SafeLoader
 
-API_URL = os.getenv("API_URL")
+from consts import CONFIG_PATH
 
-
-def set_current_tenant(tenant_id: Text) -> None:
-    st.session_state.current_tenant_id = tenant_id
-    st.session_state.is_authenticated = True
-    st.session_state.chat_history = []
-
-
-def logout():
-    st.session_state.current_tenant_id = None
-    st.session_state.is_authenticated = False
+API_URL = os.getenv("API_URL", "http://localhost:8000/api")
 
 
-def login(username, password):
+def load_config() -> Any:
+    """Load the configuration file."""
+    with open(CONFIG_PATH) as file:
+        config = yaml.load(file, Loader=SafeLoader)
+    return add_tenants_to_config(config)
+
+
+def add_tenants_to_config(config: dict) -> dict:
+    """Add tenants to the configuration."""
+    if 'credentials' not in config:
+        config['credentials'] = {}
+    if 'usernames' not in config['credentials']:
+        config['credentials']['usernames'] = {}
+
+    for user in get_tenants() or []:
+        config['credentials']['usernames'][user['name']] = {
+            'name': user['name'],
+            'password': stauth.Hasher([user['name']]).generate()[0]
+        }
+    return config
+
+
+def get_tenants() -> Optional[Any]:
+    """Retrieve tenants from the API."""
     try:
-        response = requests.post(f"{API_URL}/login", params={"username": username, "password": password})
-        response_data = response.json()
-
-        if response.status_code == 200:
-            st.toast("Logged in successfully!")
-            set_current_tenant(response_data["id"])
-            return response_data
-        else:
-            st.toast("Invalid username or password")
-            return False
+        response = requests.get(f"{API_URL}/tenants")
+        response.raise_for_status()
+        return response.json() or []
     except requests.exceptions.RequestException as e:
-        st.toast(f"An error occurred: {str(e)}")
-        return False
+        st.error(f"Error fetching tenants: {e}")
+        return None
 
 
-def query_knowledge_base(tenant_id: Text, query: Text) -> Any:
+def get_tenant_id(tenant_name: str) -> Optional[Any]:
+    """Get tenant ID using their name."""
+    try:
+        response = requests.post(f"{API_URL}/login", params={"username": tenant_name, "password": tenant_name})
+        response.raise_for_status()
+        return response.json().get('id')
+    except requests.exceptions.RequestException as e:
+        st.error(f"An error occurred: {str(e)}")
+        return None
+
+
+def query_knowledge_base(tenant_id: str, query: str) -> Any:
+    """Query the knowledge base for a specific tenant."""
     try:
         response = requests.post(f"{API_URL}/query/{tenant_id}", json={"text": query, "k": 5})
         response.raise_for_status()
-        query_results = response.json()
-        return query_results.get("response", "No relevant information found.")
+        return response.json().get("response", "No relevant information found.")
     except requests.exceptions.RequestException as e:
-        st.toast(f"Error querying knowledge base: {e}", icon="🚨")
-        return "Error querying knowledge base."
+        st.error(f"Error querying knowledge base: {e}")
+        return {"error": str(e)}
     except Exception as e:
-        st.toast(f"Unexpected error: {e}", icon="🚨")
-        return "Unexpected error occurred."
+        st.error(f"Unexpected error: {e}")
+        return {"error": str(e)}
 
 
 def add_custom_css():
+    """Add custom CSS to hide Streamlit header."""
     st.markdown("""
     <style>
         header {visibility: hidden;}
@@ -56,7 +80,8 @@ def add_custom_css():
     """, unsafe_allow_html=True)
 
 
-def footer():
+def footer(authenticator: Authenticate):
+    """Display footer with logout button."""
     st.caption("---------")
     st.markdown(
         """
@@ -68,4 +93,9 @@ def footer():
         """,
         unsafe_allow_html=True
     )
-    st.button("Logout", on_click=logout, help="Log out of the application", type='primary')
+    st.button(
+        "Logout",
+        on_click=lambda: authenticator.logout(location='unrendered'),
+        help="Log out of the application",
+        type='primary'
+    )
